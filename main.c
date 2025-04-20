@@ -10,7 +10,6 @@
 #include <netpacket/packet.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <ifaddrs.h>
 
 #define ETH_HDR_LEN 14
 #define ARP_PKT_LEN 28
@@ -45,17 +44,18 @@ void mac_str_to_bytes(const char *str, uint8_t *mac) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 5) {
-        fprintf(stderr, "Usage: sudo %s <source_ip> <source_mac> <target_ip> <target_mac>\n", argv[0]);
+    if (argc != 6) {
+        fprintf(stderr, "Usage: sudo %s <interface> <source_ip> <source_mac> <target_ip> <target_mac>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     signal(SIGINT, signal_handler);
 
-    char *source_ip = argv[1];
-    char *source_mac_str = argv[2];
-    char *target_ip = argv[3];
-    char *target_mac_str = argv[4];
+    char *ifname = argv[1];
+    char *source_ip = argv[2];
+    char *source_mac_str = argv[3];
+    char *target_ip = argv[4];
+    char *target_mac_str = argv[5];
 
     uint8_t source_mac[6], target_mac[6];
     mac_str_to_bytes(source_mac_str, source_mac);
@@ -65,21 +65,6 @@ int main(int argc, char *argv[]) {
     if (sock < 0) {
         perror("socket");
         return EXIT_FAILURE;
-    }
-
-    struct ifaddrs *ifaddr, *ifa;
-    char ifname[IFNAMSIZ] = {0};
-    if (getifaddrs(&ifaddr) == -1) {
-        perror("getifaddrs");
-        close(sock);
-        return EXIT_FAILURE;
-    }
-
-    for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_PACKET) {
-            strncpy(ifname, ifa->ifa_name, IFNAMSIZ);
-            break;
-        }
     }
 
     printf("Listening on interface: %s\n", ifname);
@@ -101,6 +86,9 @@ int main(int argc, char *argv[]) {
         struct arp_header *arp = (struct arp_header *)(buffer + ETH_HDR_LEN);
         if (ntohs(arp->opcode) != ARP_REQUEST) continue;
 
+        struct in_addr src_ip_addr;
+        inet_pton(AF_INET, source_ip, &src_ip_addr);
+    
         in_addr_t src_ip = inet_addr(source_ip);
         if (memcpy(arp->target_ip, &src_ip, 4) != 0) continue;
 
@@ -137,7 +125,6 @@ int main(int argc, char *argv[]) {
         break;
     }
 
-    freeifaddrs(ifaddr);
     close(sock);
     return EXIT_SUCCESS;
 }
