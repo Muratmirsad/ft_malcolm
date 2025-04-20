@@ -10,6 +10,7 @@
 #include <netpacket/packet.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 
 #define ETH_HDR_LEN 14
 #define ARP_PKT_LEN 28
@@ -44,18 +45,17 @@ void mac_str_to_bytes(const char *str, uint8_t *mac) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 6) {
-        fprintf(stderr, "Usage: sudo %s <interface> <source_ip> <source_mac> <target_ip> <target_mac>\n", argv[0]);
+    if (argc != 5) {
+        fprintf(stderr, "Usage: sudo %s <source_ip> <source_mac> <target_ip> <target_mac>\n", argv[0]);
         return EXIT_FAILURE;
     }
 
     signal(SIGINT, signal_handler);
 
-    char *ifname = argv[1];
-    char *source_ip = argv[2];
-    char *source_mac_str = argv[3];
-    char *target_ip = argv[4];
-    char *target_mac_str = argv[5];
+    char *source_ip = argv[1];
+    char *source_mac_str = argv[2];
+    char *target_ip = argv[3];
+    char *target_mac_str = argv[4];
 
     uint8_t source_mac[6], target_mac[6];
     mac_str_to_bytes(source_mac_str, source_mac);
@@ -67,10 +67,18 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
+    // Manuel olarak enp0s3 arayüzünü kullanacağız
+    char ifname[] = "enp0s3";  // Arayüz ismini burada doğrudan belirtiyoruz.
+
     printf("Listening on interface: %s\n", ifname);
 
     struct sockaddr_ll device = {0};
     device.sll_ifindex = if_nametoindex(ifname);
+    if (device.sll_ifindex == 0) {
+        fprintf(stderr, "Arayüz bulunamadı: %s\n", ifname);
+        close(sock);
+        return EXIT_FAILURE;
+    }
     device.sll_family = AF_PACKET;
     memcpy(device.sll_addr, target_mac, 6);
     device.sll_halen = 6;
@@ -86,11 +94,8 @@ int main(int argc, char *argv[]) {
         struct arp_header *arp = (struct arp_header *)(buffer + ETH_HDR_LEN);
         if (ntohs(arp->opcode) != ARP_REQUEST) continue;
 
-        struct in_addr src_ip_addr;
-        inet_pton(AF_INET, source_ip, &src_ip_addr);
-    
         in_addr_t src_ip = inet_addr(source_ip);
-        if (memcpy(arp->target_ip, &src_ip, 4) != 0) continue;
+        if (memcmp(arp->target_ip, &src_ip, 4) != 0) continue;
 
         printf("Received ARP request from %d.%d.%d.%d\n",
                arp->sender_ip[0], arp->sender_ip[1], arp->sender_ip[2], arp->sender_ip[3]);
