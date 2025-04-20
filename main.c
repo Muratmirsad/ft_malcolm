@@ -67,8 +67,8 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Manuel olarak enp0s3 arayüzünü kullanacağız
-    char ifname[] = "enp0s3";  // Arayüz ismini burada doğrudan belirtiyoruz.
+    // Interface
+    char ifname[] = "enp0s3";
 
     printf("Listening on interface: %s\n", ifname);
 
