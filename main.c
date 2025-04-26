@@ -20,6 +20,9 @@
 #define HW_TYPE_ETH 0x0001
 #define PROTO_TYPE_IP 0x0800
 #define VERBOSE 1
+#define TRUE 1
+#define INTERFACE_STR "enp0s3"
+#define MAC_LENG 17
 
 static int running = 1;
 
@@ -46,10 +49,54 @@ struct arp_header
 
 /*	--------------------------------------------	*/
 
+/*	----------        utils           -------------*/
+
 void mac_str_to_bytes(const char *str, uint8_t *mac)
 {
     sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 }
+
+int mac_check(char* mac_str)
+{
+	char c;
+
+	if (strlen( mac_str ) != MAC_LENG) return 1;
+
+	for (int j = 0; j < MAC_LENG; j++)
+	{
+		c = mac_str[j];
+
+		if ((j + 1) % 3)
+		{
+			//printf("char: %c\n", c);
+			//printf("mod: %d\n", (j + 1) % 3);
+			if ((c >= '0' && '9' >= c) || (c >= 'A' && 'F' >= c) || (c >= 'a' && 'f' >= c)) continue;
+			else return 1;
+		}
+		else if (c == ':')
+		{
+			continue;
+		}
+		else
+		{
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+int check_args(char* source_ip, char* target_ip, char* source_mac, char* target_mac)
+{
+	struct in_addr ip_addr;
+
+	if (inet_pton(AF_INET, source_ip, &ip_addr) == 0 || inet_pton(AF_INET, target_ip, &ip_addr) == 0) return 1;
+	if (mac_check(source_mac) || mac_check(target_mac)) return 1;
+
+	return 0;
+}
+
+/*	------------------------------------------	*/
 
 int main(int argc, char *argv[])
 {
@@ -67,6 +114,12 @@ int main(int argc, char *argv[])
     char *target_mac_str = argv[4];
     int  flag = 0;
 
+    if (check_args(source_ip, target_ip, source_mac_str, target_mac_str))
+    {
+	fprintf(stderr, "ar error\n");
+	return EXIT_FAILURE;
+    }
+
     if (argc == 6)
     {
 	char *flag_str = argv[5];
@@ -77,7 +130,7 @@ int main(int argc, char *argv[])
 			flag = VERBOSE;
 		else
 		{
-			write(2, "flag error\n", 11);
+			fprintf(stderr, "flag error\n");
 			return EXIT_FAILURE;
 		}
 	}
@@ -98,7 +151,7 @@ int main(int argc, char *argv[])
 	printf("\tProgram starting with VERBOSE mode\n\n");
 
     // interface
-    char ifname[] = "enp0s3";
+    char ifname[] = INTERFACE_STR;
 
     printf("\tListening on interface: %s\n", ifname);
 
