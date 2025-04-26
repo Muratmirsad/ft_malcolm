@@ -1,7 +1,7 @@
 NAME = ft_malcolm
 
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror
+CFLAGS = -Wall -Wextra -Werror -g
 
 SRCS = main.c
 OBJS = $(SRCS:.c=.o)
@@ -18,3 +18,13 @@ fclean: clean
 	rm -f $(NAME)
 
 re: fclean all
+
+
+arp:
+	@ip neigh
+
+arp-clear:
+	@sudo ip -s -s neigh flush all
+
+test:
+	sudo ./$(NAME) 192.168.56.110 AA:BB:CC:DD:EE:FF 192.168.56.177 08:00:00:00:00:0A

